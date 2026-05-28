@@ -21,33 +21,21 @@ def home():
 @app.route("/balance")
 def get_balance():
     account = request.args.get("account", "")
-
-    # VULNERABLE: input inserted directly into query string
     query = f"SELECT Account_Num, Description, Balance FROM Accounts WHERE Account_Num = {account}"
-
     conn = get_db()
     cursor = conn.cursor()
-
     try:
-        cursor.executescript(query)
-        cursor.execute(f"SELECT Account_Num, Description, Balance FROM Accounts WHERE Account_Num = {account}")
-        result = cursor.fetchone()
+        statements = [s.strip() for s in query.split(";") if s.strip() and not s.strip().startswith("--")]
+        for stmt in statements:
+            cursor.execute(stmt)
         conn.commit()
+        cursor.execute("SELECT Account_Num, Description, Balance FROM Accounts")
+        all_accounts = cursor.fetchall()
         conn.close()
-
-        # Show all balances after query runs (so you can see the change)
-        conn2 = get_db()
-        c2 = conn2.cursor()
-        c2.execute("SELECT Account_Num, Description, Balance FROM Accounts")
-        all_accounts = c2.fetchall()
-        conn2.close()
-
         return jsonify({
             "query_executed": query,
-            "result": result,
             "all_balances_after": all_accounts
         })
-
     except Exception as e:
         conn.close()
         return jsonify({"error": str(e), "query_attempted": query})
